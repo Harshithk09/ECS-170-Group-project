@@ -24,7 +24,8 @@ class Dataset_Loader(dataset):
         for line in f:
             line = line.strip('\n')
             elements = [int(i) for i in line.split(',')]
-            y.append(elements[:0]) #the labels in this dataset are in the first column
-            X.append(elements[1:]) #These are the remaining 784 pixel values
+            # Label in first column, remaining columns are features (e.g. 784 for MNIST).
+            y.append(elements[0])
+            X.append(elements[1:])
         f.close()
         return {'X': X, 'y': y}

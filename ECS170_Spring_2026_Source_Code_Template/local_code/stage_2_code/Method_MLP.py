@@ -95,7 +95,8 @@ class Method_MLP(method, nn.Module):
             #Track every 5 epochs (6 checkpoints)
             if epoch%5 == 0:
                 accuracy_evaluator.data = {'true_y': y_true, 'pred_y': y_pred.max(1)[1]}
-                print('Epoch:', epoch, 'Accuracy:', accuracy_evaluator.evaluate(), 'Loss:', train_loss.item())
+                train_metrics = accuracy_evaluator.evaluate()
+                print('Epoch:', epoch, 'Accuracy:', train_metrics['accuracy'], 'Loss:', train_loss.item())
     
     def test(self, X):
         # do the testing, and result the result
