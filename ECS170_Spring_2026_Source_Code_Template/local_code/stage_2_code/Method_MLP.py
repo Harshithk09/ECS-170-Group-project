@@ -7,6 +7,10 @@ Concrete MethodModule class for a specific learning MethodModule
 
 from local_code.base_class.method import method
 from local_code.stage_2_code.Evaluate_Accuracy import Evaluate_Accuracy
+from pathlib import Path
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import torch
 from torch import nn
 import numpy as np
@@ -21,6 +25,10 @@ class Method_MLP(method, nn.Module):
     max_epoch = 30
     # it defines the learning rate for gradient descent based optimizer for model learning
     learning_rate = 1e-3
+    training_history = None
+    plot_destination_folder_path = None
+    plot_file_name = 'MLP_convergence_curve.png'
+    last_plot_path = None
 
     # it defines the the MLP model architecture, e.g.,
     # how many layers, size of variables in each layer, activation function, etc.
@@ -41,6 +49,7 @@ class Method_MLP(method, nn.Module):
         #linear fully connected output layer
         self.fc_layer_3 = nn.Linear(128, 10) #Digits 0-9
         #Current Network shape: input(784) -> hiddenlayer1(256)->ReLU->hiddenlayer2(128)->ReLU->FC(10)
+        self.training_history = {'epoch': [], 'loss': [], 'accuracy': []}
 
 
 
@@ -64,6 +73,39 @@ class Method_MLP(method, nn.Module):
     # backward error propagation will be implemented by pytorch automatically
     # so we don't need to define the error backpropagation function here
 
+    def save_convergence_plot(self):
+        if not self.training_history['epoch']:
+            return None
+
+        if self.plot_destination_folder_path is None:
+            project_root = Path(__file__).resolve().parents[2]
+            destination_dir = project_root / 'result' / 'stage_2_result'
+        else:
+            destination_dir = Path(self.plot_destination_folder_path)
+
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        destination_path = destination_dir / self.plot_file_name
+
+        fig, axes = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
+
+        axes[0].plot(self.training_history['epoch'], self.training_history['loss'], color='tab:red', linewidth=2)
+        axes[0].set_title('MLP Convergence Curve')
+        axes[0].set_ylabel('Training Loss')
+        axes[0].grid(True, alpha=0.3)
+
+        axes[1].plot(self.training_history['epoch'], self.training_history['accuracy'], color='tab:blue', linewidth=2)
+        axes[1].set_xlabel('Epoch')
+        axes[1].set_ylabel('Training Accuracy')
+        axes[1].grid(True, alpha=0.3)
+
+        fig.tight_layout()
+        fig.savefig(destination_path, dpi=150)
+        plt.close(fig)
+
+        self.last_plot_path = str(destination_path)
+        print('convergence plot saved to:', destination_path)
+        return self.last_plot_path
+
     def train(self, X, y):
         # check here for the torch.optim doc: https://pytorch.org/docs/stable/optim.html
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
@@ -75,6 +117,7 @@ class Method_MLP(method, nn.Module):
         # it will be an iterative gradient updating process
         # we don't do mini-batch, we use the whole input as one batch
         # you can try to split X and y into smaller-sized batches by yourself
+        self.training_history = {'epoch': [], 'loss': [], 'accuracy': []}
         for epoch in range(self.max_epoch): # you can do an early stop if self.max_epoch is too much...
             # get the output, we need to covert X into torch.tensor so pytorch algorithm can operate on it
             y_pred = self.forward(torch.FloatTensor(np.array(X)))
@@ -92,11 +135,17 @@ class Method_MLP(method, nn.Module):
             # update the variables according to the optimizer and the gradients calculated by the above loss.backward function
             optimizer.step()
 
+            accuracy_evaluator.data = {'true_y': y_true, 'pred_y': y_pred.max(1)[1]}
+            train_metrics = accuracy_evaluator.evaluate()
+            self.training_history['epoch'].append(epoch + 1)
+            self.training_history['loss'].append(train_loss.item())
+            self.training_history['accuracy'].append(train_metrics['accuracy'])
+
             #Track every 5 epochs (6 checkpoints)
             if epoch%5 == 0:
-                accuracy_evaluator.data = {'true_y': y_true, 'pred_y': y_pred.max(1)[1]}
-                train_metrics = accuracy_evaluator.evaluate()
                 print('Epoch:', epoch, 'Accuracy:', train_metrics['accuracy'], 'Loss:', train_loss.item())
+
+        return self.training_history
     
     def test(self, X):
         # do the testing, and result the result
@@ -108,8 +157,14 @@ class Method_MLP(method, nn.Module):
     def run(self):
         print('method running...')
         print('--start training...')
-        self.train(self.data['train']['X'], self.data['train']['y'])
+        history = self.train(self.data['train']['X'], self.data['train']['y'])
+        plot_path = self.save_convergence_plot()
         print('--start testing...')
         pred_y = self.test(self.data['test']['X'])
-        return {'pred_y': pred_y, 'true_y': self.data['test']['y']}
+        return {
+            'pred_y': pred_y,
+            'true_y': self.data['test']['y'],
+            'training_history': history,
+            'convergence_plot_path': plot_path,
+        }
             

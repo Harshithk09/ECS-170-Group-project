@@ -15,18 +15,23 @@ class Setting_Train_Test_Split(setting):
         super().__init__(sName, sDescription)
         self.train_data = None
         self.test_data = None
-        # Used by load_run_save_evaluate(); override before running (e.g. 'class').
-        self.label_column = 'label'
+        # Stage 2 MNIST CSV files have no header row and store the label in the
+        # first column, so column index 0 is the default label column.
+        self.label_column = 0
+        # The provided Stage 2 data files do not include a header row.
+        self.has_header = False
 
     def load(self, train_path, test_path):
         """
         Load two separate CSV files instead of randomly splitting one file.
-        Expects each CSV to have feature columns and a label column (see split()).
+        The provided Stage 2 MNIST files are headerless CSVs where the first
+        column is the label and the remaining 784 columns are pixel features.
         """
-        self.train_data = pd.read_csv(train_path)
-        self.test_data = pd.read_csv(test_path)
+        header = 0 if self.has_header else None
+        self.train_data = pd.read_csv(train_path, header=header)
+        self.test_data = pd.read_csv(test_path, header=header)
 
-    def split(self, label_column='label'):
+    def split(self, label_column=0):
         """
         Separate features and labels from each file. Returns
         (X_train, y_train, X_test, y_test) as numpy arrays.
@@ -34,11 +39,20 @@ class Setting_Train_Test_Split(setting):
         if self.train_data is None or self.test_data is None:
             raise ValueError('Data not loaded. Call load(train_path, test_path) first.')
 
-        X_train = self.train_data.drop(columns=[label_column]).values
-        y_train = self.train_data[label_column].values
+        # Support either integer column indices (used by the provided MNIST
+        # files) or explicit column names if the setting is reused later.
+        if isinstance(label_column, int):
+            X_train = self.train_data.drop(columns=[label_column]).values
+            y_train = self.train_data.iloc[:, label_column].values
 
-        X_test = self.test_data.drop(columns=[label_column]).values
-        y_test = self.test_data[label_column].values
+            X_test = self.test_data.drop(columns=[label_column]).values
+            y_test = self.test_data.iloc[:, label_column].values
+        else:
+            X_train = self.train_data.drop(columns=[label_column]).values
+            y_train = self.train_data[label_column].values
+
+            X_test = self.test_data.drop(columns=[label_column]).values
+            y_test = self.test_data[label_column].values
 
         print(f'Train size : {len(X_train)} samples')
         print(f'Test size  : {len(X_test)} samples')
