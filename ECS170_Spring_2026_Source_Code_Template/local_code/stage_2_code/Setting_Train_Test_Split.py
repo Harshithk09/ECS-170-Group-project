@@ -71,10 +71,14 @@ class Setting_Train_Test_Split(setting):
         X_train, y_train, X_test, y_test = self.split(label_column=self.label_column)
         self.method.data = {'train': {'X': X_train, 'y': y_train}, 'test': {'X': X_test, 'y': y_test}}
         learned_result = self.method.run()
-        self.result.data = learned_result
-        self.result.save()
         self.evaluate.data = learned_result
-        return self.evaluate.evaluate(), None
+        metrics = self.evaluate.evaluate()
+        # Save a concise summary that is suitable for a text report file.
+        self.result.data = {
+            'metrics': {key: round(value, 4) for key, value in metrics.items()},
+        }
+        self.result.save()
+        return metrics, None
 
     def __str__(self):
         if self.train_data is None or self.test_data is None:

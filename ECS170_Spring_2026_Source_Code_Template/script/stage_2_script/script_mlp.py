@@ -68,7 +68,7 @@ def main():
     # Configure where the raw prediction results should be saved.
     result_obj = Result_Saver('saver', '')
     result_obj.result_destination_folder_path = str(PROJECT_ROOT / 'result' / 'stage_2_result')
-    result_obj.result_destination_file_name = 'MLP_prediction_result.pkl'
+    result_obj.result_destination_file_name = 'MLP_metrics.txt'
 
     # This setting expects two already-separated CSV files rather than doing
     # a random split like Stage 1.

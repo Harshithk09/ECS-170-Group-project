@@ -56,14 +56,35 @@ class Result_Saver(result):
 
     def save(self):
         print('saving results...')
-        # Build the final absolute output path and serialize self.data as a pickle.
+        # Build the final absolute output path and serialize self.data either as
+        # a pickle or a human-readable text file depending on the extension.
         destination_path = self._build_destination_path()
-        with destination_path.open('wb') as result_file:
-            pickle.dump(self.data, result_file)
+        if destination_path.suffix.lower() == '.txt':
+            with destination_path.open('w', encoding='utf-8') as result_file:
+                result_file.write(self._to_text(self.data))
+        else:
+            with destination_path.open('wb') as result_file:
+                pickle.dump(self.data, result_file)
         # Remember the exact saved path so load() can read back the same file.
         self.last_saved_path = str(destination_path)
         print('results saved to:', destination_path)
         return self.last_saved_path
+
+    def _to_text(self, value, indent=0):
+        prefix = ' ' * indent
+        if isinstance(value, dict):
+            lines = []
+            for key, item in value.items():
+                if isinstance(item, (dict, list, tuple)):
+                    lines.append(f'{prefix}{key}:')
+                    lines.append(self._to_text(item, indent + 2))
+                else:
+                    lines.append(f'{prefix}{key}: {item}')
+            return '\n'.join(lines) + '\n'
+        if isinstance(value, (list, tuple)):
+            lines = [f'{prefix}- {item}' for item in value]
+            return '\n'.join(lines) + '\n'
+        return f'{prefix}{value}\n'
 
     def load(self):
         # Prefer reopening the most recently saved file. If save() has not been
@@ -73,8 +94,12 @@ class Result_Saver(result):
         else:
             destination_path = self._build_destination_path()
 
-        # Deserialize the pickle payload and also store it back on self.data so
+        # Deserialize the saved payload and also store it back on self.data so
         # the object behaves like the original Stage 1 loader/saver pattern.
-        with destination_path.open('rb') as result_file:
-            self.data = pickle.load(result_file)
+        if destination_path.suffix.lower() == '.txt':
+            with destination_path.open('r', encoding='utf-8') as result_file:
+                self.data = result_file.read()
+        else:
+            with destination_path.open('rb') as result_file:
+                self.data = pickle.load(result_file)
         return self.data
