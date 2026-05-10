@@ -1,13 +1,9 @@
-'''MNIST digit images from the course pickle (MNIST).'''
-
-# Copyright (c) 2017-Current Jiawei Zhang <jiawei@ifmlab.org>
-# License: TBD
-
-import pickle
-
-import numpy as np
+'''
+Concrete MNIST dataset loader for Stage 3 CNN
+'''
 
 from local_code.base_class.dataset import dataset
+import pickle
 
 
 class Dataset_Loader_MNIST(dataset):
@@ -19,22 +15,27 @@ class Dataset_Loader_MNIST(dataset):
         super().__init__(dName, dDescription)
 
     def load(self):
-        print('MNIST LOADING')
-        path = self.dataset_source_folder_path + self.dataset_source_file_name
-        with open(path, 'rb') as f:
-            raw = pickle.load(f)
+        print('loading MNIST data...')
 
-        train_X, train_y = [], []
-        for instance in raw['train']:
-            train_X.append(np.asarray(instance['image']))
+        file_path = self.dataset_source_folder_path + self.dataset_source_file_name
+
+        with open(file_path, 'rb') as f:
+            data = pickle.load(f)
+
+        train_X = []
+        train_y = []
+        test_X = []
+        test_y = []
+
+        for instance in data['train']:
+            train_X.append(instance['image'])
             train_y.append(instance['label'])
 
-        test_X, test_y = [], []
-        for instance in raw['test']:
-            test_X.append(np.asarray(instance['image']))
+        for instance in data['test']:
+            test_X.append(instance['image'])
             test_y.append(instance['label'])
 
         return {
             'train': {'X': train_X, 'y': train_y},
-            'test': {'X': test_X, 'y': test_y},
+            'test': {'X': test_X, 'y': test_y}
         }
