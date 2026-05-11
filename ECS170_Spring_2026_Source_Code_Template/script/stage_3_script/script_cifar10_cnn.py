@@ -46,6 +46,8 @@ def main():
         data_obj.preloaded_data = Dataset_Loader_CIFAR10.course_dict_from_torchvision(tv_root)
 
     method_obj = Method_CNN_CIFAR10('cnn cifar10', 'WideResNet-28-10 on CIFAR-10')
+    method_obj.architecture = 'resnet18'
+    method_obj.max_epoch = 50
     method_obj.plot_destination_folder_path = str(PROJECT_ROOT / 'result' / 'stage_3_result')
     method_obj.plot_file_name = 'cifar10_convergence_curve.png'
 
