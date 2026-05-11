@@ -1,7 +1,10 @@
 '''
-CNN / ResNet-18 classifier for CIFAR-10 (32x32x3). Default `architecture='resnet18'`
-uses the standard CIFAR setup (normalize, flip + pad/crop aug, SGD, MultiStep LR)
-to reach strong test accuracy; set `architecture='cnn'` for the smaller baseline CNN.
+High-accuracy CIFAR-10 classifier.
+
+The default architecture is WideResNet-28-10 with CIFAR-style augmentation,
+SGD + Nesterov momentum, cosine learning-rate decay, label smoothing, Cutout,
+and optional MixUp. Set ``architecture='resnet18'`` or ``architecture='cnn'``
+for lighter baselines.
 '''
 
 # Copyright (c) 2017-Current Jiawei Zhang <jiawei@ifmlab.org>
@@ -39,6 +42,91 @@ def _resnet18_cifar(num_classes=10):
     m.maxpool = nn.Identity()
     m.fc = nn.Linear(m.fc.in_features, num_classes)
     return m
+
+
+def _conv3x3(in_planes, out_planes, stride=1):
+    return nn.Conv2d(
+        in_planes,
+        out_planes,
+        kernel_size=3,
+        stride=stride,
+        padding=1,
+        bias=False,
+    )
+
+
+class WideBasicBlock(nn.Module):
+    def __init__(self, in_planes, out_planes, dropout_rate, stride):
+        super().__init__()
+        self.bn1 = nn.BatchNorm2d(in_planes)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv1 = _conv3x3(in_planes, out_planes, stride)
+        self.bn2 = nn.BatchNorm2d(out_planes)
+        self.relu2 = nn.ReLU(inplace=True)
+        self.dropout = nn.Dropout(p=dropout_rate)
+        self.conv2 = _conv3x3(out_planes, out_planes, 1)
+        self.shortcut = nn.Identity()
+        if stride != 1 or in_planes != out_planes:
+            self.shortcut = nn.Conv2d(
+                in_planes,
+                out_planes,
+                kernel_size=1,
+                stride=stride,
+                bias=False,
+            )
+
+    def forward(self, x):
+        out = self.conv1(self.relu1(self.bn1(x)))
+        out = self.conv2(self.dropout(self.relu2(self.bn2(out))))
+        return out + self.shortcut(x)
+
+
+class WideResNet(nn.Module):
+    def __init__(self, depth=28, widen_factor=10, dropout_rate=0.3, num_classes=10):
+        super().__init__()
+        if (depth - 4) % 6 != 0:
+            raise ValueError('WideResNet depth must be 6n + 4.')
+        blocks_per_group = (depth - 4) // 6
+        widths = [16, 16 * widen_factor, 32 * widen_factor, 64 * widen_factor]
+        self.in_planes = widths[0]
+
+        self.conv1 = _conv3x3(3, widths[0])
+        self.block1 = self._make_group(widths[1], blocks_per_group, dropout_rate, stride=1)
+        self.block2 = self._make_group(widths[2], blocks_per_group, dropout_rate, stride=2)
+        self.block3 = self._make_group(widths[3], blocks_per_group, dropout_rate, stride=2)
+        self.bn = nn.BatchNorm2d(widths[3])
+        self.relu = nn.ReLU(inplace=True)
+        self.fc = nn.Linear(widths[3], num_classes)
+        self._initialize()
+
+    def _make_group(self, out_planes, num_blocks, dropout_rate, stride):
+        strides = [stride] + [1] * (num_blocks - 1)
+        layers = []
+        for block_stride in strides:
+            layers.append(WideBasicBlock(self.in_planes, out_planes, dropout_rate, block_stride))
+            self.in_planes = out_planes
+        return nn.Sequential(*layers)
+
+    def _initialize(self):
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d):
+                nn.init.kaiming_normal_(module.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(module, nn.BatchNorm2d):
+                nn.init.constant_(module.weight, 1)
+                nn.init.constant_(module.bias, 0)
+            elif isinstance(module, nn.Linear):
+                nn.init.xavier_normal_(module.weight)
+                nn.init.constant_(module.bias, 0)
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.block1(out)
+        out = self.block2(out)
+        out = self.block3(out)
+        out = self.relu(self.bn(out))
+        out = F.avg_pool2d(out, 8)
+        out = out.view(out.size(0), -1)
+        return self.fc(out)
 
 
 class CNN_Net(nn.Module):
@@ -89,13 +177,21 @@ class CNN_Net(nn.Module):
 class Method_CNN_CIFAR10(method):
     data = None
     num_classes = 10
-    architecture = 'resnet18'
+    architecture = 'wideresnet'
     learning_rate = 1e-3
-    resnet_lr = 0.1
-    max_epoch = 200
+    cifar_lr = 0.1
+    max_epoch = 300
     batch_size = 128
     use_augmentation = True
     use_cifar_normalize = True
+    use_cutout = True
+    cutout_size = 16
+    use_mixup = True
+    mixup_alpha = 1.0
+    label_smoothing = 0.1
+    wrn_depth = 28
+    wrn_widen_factor = 10
+    wrn_dropout_rate = 0.3
     plot_destination_folder_path = None
     plot_file_name = 'cifar10_convergence_curve.png'
     last_plot_path = None
@@ -103,26 +199,50 @@ class Method_CNN_CIFAR10(method):
     def __init__(self, mName=None, mDescription=None):
         super().__init__(mName, mDescription)
         self.device = _pick_device()
-        if self.architecture == 'resnet18':
+        if self.architecture == 'wideresnet':
+            self.model = WideResNet(
+                depth=self.wrn_depth,
+                widen_factor=self.wrn_widen_factor,
+                dropout_rate=self.wrn_dropout_rate,
+                num_classes=self.num_classes,
+            ).to(self.device)
+            self.optimizer = optim.SGD(
+                self.model.parameters(),
+                lr=self.cifar_lr,
+                momentum=0.9,
+                weight_decay=5e-4,
+                nesterov=True,
+            )
+            self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer,
+                T_max=self.max_epoch,
+                eta_min=1e-5,
+            )
+        elif self.architecture == 'resnet18':
             self.model = _resnet18_cifar(self.num_classes).to(self.device)
             self.optimizer = optim.SGD(
                 self.model.parameters(),
-                lr=self.resnet_lr,
+                lr=self.cifar_lr,
                 momentum=0.9,
                 weight_decay=5e-4,
+                nesterov=True,
             )
-            self.scheduler = optim.lr_scheduler.MultiStepLR(
-                self.optimizer, milestones=[100, 150], gamma=0.1
+            self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer,
+                T_max=self.max_epoch,
+                eta_min=1e-5,
             )
         else:
             self.model = CNN_Net(num_classes=self.num_classes).to(self.device)
             self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
             self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=15, gamma=0.5)
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
         self.train_loss_list = []
         self.train_acc_list = []
         self.test_loss_list = []
         self.test_acc_list = []
+        self.use_amp = self.device.type == 'cuda'
+        self.scaler = torch.amp.GradScaler('cuda', enabled=self.use_amp)
 
     def _normalize_cifar(self, x_nchw):
         if not self.use_cifar_normalize:
@@ -136,25 +256,55 @@ class Method_CNN_CIFAR10(method):
         x = x / 255.0
         if x.ndim == 4 and x.shape[-1] == 3:
             x = np.transpose(x, (0, 3, 1, 2))
-        if self.use_cifar_normalize:
-            mean = np.array([0.4914, 0.4822, 0.4465], dtype=np.float32).reshape(1, 3, 1, 1)
-            std = np.array([0.2470, 0.2435, 0.2616], dtype=np.float32).reshape(1, 3, 1, 1)
-            x = (x - mean) / std
         return x
 
     def _augment_batch(self, x):
-        if not self.use_augmentation or self.architecture != 'resnet18':
+        if not self.use_augmentation or self.architecture not in {'wideresnet', 'resnet18'}:
             return x
         try:
             x = F.pad(x, (4, 4, 4, 4), mode='reflect')
         except (NotImplementedError, RuntimeError):
             x = F.pad(x, (4, 4, 4, 4), mode='replicate')
-        h_off = random.randint(0, 8)
-        w_off = random.randint(0, 8)
-        x = x[:, :, h_off : h_off + 32, w_off : w_off + 32]
-        if random.random() < 0.5:
-            x = torch.flip(x, dims=(3,))
+        cropped = []
+        for img in x:
+            h_off = random.randint(0, 8)
+            w_off = random.randint(0, 8)
+            img = img[:, h_off:h_off + 32, w_off:w_off + 32]
+            if random.random() < 0.5:
+                img = torch.flip(img, dims=(2,))
+            cropped.append(img)
+        x = torch.stack(cropped)
+        if self.use_cutout:
+            x = self._cutout(x)
         return x
+
+    def _cutout(self, x):
+        if self.cutout_size <= 0:
+            return x
+        _, _, height, width = x.shape
+        half = self.cutout_size // 2
+        for img in x:
+            center_y = random.randint(0, height - 1)
+            center_x = random.randint(0, width - 1)
+            y1 = max(0, center_y - half)
+            y2 = min(height, center_y + half)
+            x1 = max(0, center_x - half)
+            x2 = min(width, center_x + half)
+            img[:, y1:y2, x1:x2] = 0.0
+        return x
+
+    def _mixup(self, x, y):
+        if not self.use_mixup or self.mixup_alpha <= 0:
+            return x, y, y, 1.0
+        lam = np.random.beta(self.mixup_alpha, self.mixup_alpha)
+        indices = torch.randperm(x.size(0), device=x.device)
+        mixed_x = lam * x + (1.0 - lam) * x[indices]
+        return mixed_x, y, y[indices], lam
+
+    def _classification_loss(self, outputs, y_a, y_b=None, lam=1.0):
+        if y_b is None or lam == 1.0:
+            return self.criterion(outputs, y_a)
+        return lam * self.criterion(outputs, y_a) + (1.0 - lam) * self.criterion(outputs, y_b)
 
     def _make_loader(self, X_arr, y_arr, shuffle):
         xs = torch.tensor(X_arr)
@@ -167,16 +317,19 @@ class Method_CNN_CIFAR10(method):
         for X_batch, y_batch in loader:
             X_batch = X_batch.to(self.device)
             y_batch = y_batch.to(self.device)
-            if self.architecture == 'resnet18' and self.use_augmentation:
+            if self.architecture in {'wideresnet', 'resnet18'} and self.use_augmentation:
                 X_batch = self._normalize_cifar(X_batch)
                 X_batch = self._augment_batch(X_batch)
-            elif self.architecture == 'resnet18':
+            elif self.architecture in {'wideresnet', 'resnet18'}:
                 X_batch = self._normalize_cifar(X_batch)
+            X_batch, y_a, y_b, lam = self._mixup(X_batch, y_batch)
             self.optimizer.zero_grad()
-            outputs = self.model(X_batch)
-            loss = self.criterion(outputs, y_batch)
-            loss.backward()
-            self.optimizer.step()
+            with torch.amp.autocast('cuda', enabled=self.use_amp):
+                outputs = self.model(X_batch)
+                loss = self._classification_loss(outputs, y_a, y_b, lam)
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             total_loss += loss.item() * X_batch.size(0)
             preds = outputs.argmax(dim=1)
             correct += (preds == y_batch).sum().item()
@@ -190,10 +343,11 @@ class Method_CNN_CIFAR10(method):
             for X_batch, y_batch in loader:
                 X_batch = X_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
-                if self.architecture == 'resnet18':
+                if self.architecture in {'wideresnet', 'resnet18'}:
                     X_batch = self._normalize_cifar(X_batch)
-                outputs = self.model(X_batch)
-                loss = self.criterion(outputs, y_batch)
+                with torch.amp.autocast('cuda', enabled=self.use_amp):
+                    outputs = self.model(X_batch)
+                    loss = self.criterion(outputs, y_batch)
                 total_loss += loss.item() * X_batch.size(0)
                 preds = outputs.argmax(dim=1)
                 correct += (preds == y_batch).sum().item()
@@ -243,9 +397,10 @@ class Method_CNN_CIFAR10(method):
         with torch.no_grad():
             for X_batch, _ in loader:
                 X_batch = X_batch.to(self.device)
-                if self.architecture == 'resnet18':
+                if self.architecture in {'wideresnet', 'resnet18'}:
                     X_batch = self._normalize_cifar(X_batch)
-                outputs = self.model(X_batch)
+                with torch.amp.autocast('cuda', enabled=self.use_amp):
+                    outputs = self.model(X_batch)
                 all_preds.append(outputs.argmax(dim=1).cpu().numpy())
         return np.concatenate(all_preds, axis=0)
 
@@ -257,7 +412,7 @@ class Method_CNN_CIFAR10(method):
         print('device:', self.device)
         print('architecture:', self.architecture)
 
-        if self.architecture == 'resnet18':
+        if self.architecture in {'wideresnet', 'resnet18'}:
             X_train = np.stack([np.asarray(im, dtype=np.float32) for im in self.data['train']['X']], axis=0)
             X_train = X_train / 255.0
             if X_train.ndim == 4 and X_train.shape[-1] == 3:
