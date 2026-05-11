@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="ebdc087e-e8d6-4b29-b9ad-634dacea1ce5" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/ECS170_Spring_2026_Source_Code_Template/local_code/stage_3_code/Method_CNN_MNIST.py" beforeDir="false" afterPath="$PROJECT_DIR$/ECS170_Spring_2026_Source_Code_Template/local_code/stage_3_code/Method_CNN_MNIST.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ECS170_Spring_2026_Source_Code_Template/result/stage_3_result/CNN_MNIST_convergence_curve.png" beforeDir="false" afterPath="$PROJECT_DIR$/ECS170_Spring_2026_Source_Code_Template/result/stage_3_result/CNN_MNIST_convergence_curve.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ECS170_Spring_2026_Source_Code_Template/result/stage_3_result/CNN_MNIST_metrics.txt" beforeDir="false" afterPath="$PROJECT_DIR$/ECS170_Spring_2026_Source_Code_Template/result/stage_3_result/CNN_MNIST_metrics.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ECS170_Spring_2026_Source_Code_Template/script/stage_3_script/script_cnn_mnist.py" beforeDir="false" afterPath="$PROJECT_DIR$/ECS170_Spring_2026_Source_Code_Template/script/stage_3_script/script_cnn_mnist.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="ProjectId" id="3DYqEgRCSOZDfV96sVbmiq3kAP1" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "last_opened_file_path": "/Users/lucasvelasco/PycharmProjects/ECS-170-Group-project/ECS170_Spring_2026_Source_Code_Template/script/stage_3_script"
+  }
+}]]></component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="ebdc087e-e8d6-4b29-b9ad-634dacea1ce5" name="Changes" comment="" />
+      <created>1778469241671</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1778469241671</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

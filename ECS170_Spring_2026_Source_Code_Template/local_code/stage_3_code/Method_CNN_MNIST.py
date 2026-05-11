@@ -15,7 +15,7 @@ import numpy as np
 
 class Method_CNN_MNIST(method, nn.Module):
     data = None
-    max_epoch = 30
+    max_epoch = 10
     learning_rate = 1e-3
     training_history = None
     plot_destination_folder_path = None
@@ -37,7 +37,13 @@ class Method_CNN_MNIST(method, nn.Module):
         self.activation_func_3 = nn.ReLU()
         self.fc_layer_2 = nn.Linear(128, 10)
 
-        self.training_history = {'epoch': [], 'loss': [], 'accuracy': []}
+        self.training_history = {
+            'epoch': [],
+            'train_loss': [],
+            'test_loss': [],
+            'train_accuracy': [],
+            'test_accuracy': []
+        }
 
     def forward(self, x):
         x = self.pool(self.activation_func_1(self.conv_layer_1(x)))
@@ -52,13 +58,32 @@ class Method_CNN_MNIST(method, nn.Module):
 
     def prepare_images(self, X):
         X = np.array(X)
-        X = torch.FloatTensor(X)
+        X = torch.FloatTensor(X) / 255.0
 
         # MNIST images need shape: batch, channel, height, width
         if len(X.shape) == 3:
             X = X.unsqueeze(1)
 
         return X
+
+    def evaluate_accuracy_and_loss(self, X, y, loss_function):
+        accuracy_evaluator = Evaluate_Accuracy('accuracy evaluator', '')
+
+        X_tensor = self.prepare_images(X)
+        y_true = torch.LongTensor(np.array(y))
+
+        with torch.no_grad():
+            y_pred = self.forward(X_tensor)
+            loss = loss_function(y_pred, y_true).item()
+
+        accuracy_evaluator.data = {
+            'true_y': y_true,
+            'pred_y': y_pred.max(1)[1]
+        }
+
+        metrics = accuracy_evaluator.evaluate()
+
+        return metrics['accuracy'], loss
 
     def save_convergence_plot(self):
         if not self.training_history['epoch']:
@@ -75,14 +100,44 @@ class Method_CNN_MNIST(method, nn.Module):
 
         fig, axes = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
 
-        axes[0].plot(self.training_history['epoch'], self.training_history['loss'], linewidth=2)
+        axes[0].plot(
+            self.training_history['epoch'],
+            self.training_history['train_loss'],
+            label='Train',
+            linewidth=2
+        )
+
+        axes[0].plot(
+            self.training_history['epoch'],
+            self.training_history['test_loss'],
+            label='Test',
+            linestyle='--',
+            linewidth=2
+        )
+
         axes[0].set_title('CNN MNIST Convergence Curve')
-        axes[0].set_ylabel('Training Loss')
+        axes[0].set_ylabel('Loss')
+        axes[0].legend()
         axes[0].grid(True, alpha=0.3)
 
-        axes[1].plot(self.training_history['epoch'], self.training_history['accuracy'], linewidth=2)
+        axes[1].plot(
+            self.training_history['epoch'],
+            self.training_history['train_accuracy'],
+            label='Train',
+            linewidth=2
+        )
+
+        axes[1].plot(
+            self.training_history['epoch'],
+            self.training_history['test_accuracy'],
+            label='Test',
+            linestyle='--',
+            linewidth=2
+        )
+
         axes[1].set_xlabel('Epoch')
-        axes[1].set_ylabel('Training Accuracy')
+        axes[1].set_ylabel('Accuracy')
+        axes[1].legend()
         axes[1].grid(True, alpha=0.3)
 
         fig.tight_layout()
@@ -98,7 +153,13 @@ class Method_CNN_MNIST(method, nn.Module):
         loss_function = nn.CrossEntropyLoss()
         accuracy_evaluator = Evaluate_Accuracy('training evaluator', '')
 
-        self.training_history = {'epoch': [], 'loss': [], 'accuracy': []}
+        self.training_history = {
+            'epoch': [],
+            'train_loss': [],
+            'test_loss': [],
+            'train_accuracy': [],
+            'test_accuracy': []
+        }
 
         X_tensor = self.prepare_images(X)
         y_true = torch.LongTensor(np.array(y))
@@ -133,13 +194,27 @@ class Method_CNN_MNIST(method, nn.Module):
             }
 
             train_metrics = accuracy_evaluator.evaluate()
-            avg_loss = total_loss / (X_tensor.size(0) / batch_size)
+            avg_train_loss = total_loss / (X_tensor.size(0) / batch_size)
+
+            test_accuracy, test_loss = self.evaluate_accuracy_and_loss(
+                self.data['test']['X'],
+                self.data['test']['y'],
+                loss_function
+            )
 
             self.training_history['epoch'].append(epoch + 1)
-            self.training_history['loss'].append(avg_loss)
-            self.training_history['accuracy'].append(train_metrics['accuracy'])
+            self.training_history['train_loss'].append(avg_train_loss)
+            self.training_history['test_loss'].append(test_loss)
+            self.training_history['train_accuracy'].append(train_metrics['accuracy'])
+            self.training_history['test_accuracy'].append(test_accuracy)
 
-            print('Epoch:', epoch + 1, 'Accuracy:', train_metrics['accuracy'], 'Loss:', avg_loss)
+            print(
+                'Epoch:', epoch + 1,
+                'Train Accuracy:', train_metrics['accuracy'],
+                'Test Accuracy:', test_accuracy,
+                'Train Loss:', avg_train_loss,
+                'Test Loss:', test_loss
+            )
 
         return self.training_history
 
