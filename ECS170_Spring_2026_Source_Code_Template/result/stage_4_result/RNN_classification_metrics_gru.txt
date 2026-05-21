@@ -1,0 +1,15 @@
+Cell type : GRU
+Epochs    : 10
+Vocab size: 20000
+
+---- Evaluation Metrics ----
+accuracy: 0.8676
+f1_weighted: 0.8676
+precision_weighted: 0.8683
+recall_weighted: 0.8676
+f1_macro: 0.8676
+precision_macro: 0.8683
+recall_macro: 0.8676
+f1_micro: 0.8676
+precision_micro: 0.8676
+recall_micro: 0.8676

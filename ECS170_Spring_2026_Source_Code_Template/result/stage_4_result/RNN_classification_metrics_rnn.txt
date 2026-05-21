@@ -1,0 +1,15 @@
+Cell type : RNN
+Epochs    : 10
+Vocab size: 20000
+
+---- Evaluation Metrics ----
+accuracy: 0.7924
+f1_weighted: 0.7923
+precision_weighted: 0.7927
+recall_weighted: 0.7924
+f1_macro: 0.7923
+precision_macro: 0.7927
+recall_macro: 0.7924
+f1_micro: 0.7924
+precision_micro: 0.7924
+recall_micro: 0.7924

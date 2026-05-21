@@ -1,0 +1,11 @@
+Cell type    : GRU
+Epochs       : 20
+Start words  : what did the
+
+---- Generated Text ----
+what did the sentence say? i know where you're coming from this phrase, but i can't see your point." 346,"what's brown and sounds like a bell? dung." 347,"what's a balloon's favorite genre of music? pop." 240,"why was the dolphin happy and the shark depressed? the sharks life lacked porpoise." 241,"what johnny mercer song
+
+---- Evaluation ----
+Final loss        : 0.7514
+Final perplexity  : 2.12
+3-gram overlap    : 1.0000
