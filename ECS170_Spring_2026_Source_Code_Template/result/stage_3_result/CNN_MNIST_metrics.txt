@@ -1,0 +1,11 @@
+metrics:
+    accuracy: 0.9920
+    f1_weighted: 0.9920
+    precision_weighted: 0.9920
+    recall_weighted: 0.9920
+    f1_macro: 0.9919
+    precision_macro: 0.9919
+    recall_macro: 0.9919
+    f1_micro: 0.9920
+    precision_micro: 0.9920
+    recall_micro: 0.9920
