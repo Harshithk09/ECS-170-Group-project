@@ -16,21 +16,18 @@ from local_code.stage_4_code.Method_RNN_Classification import Method_RNN_Classif
 
 
 def run_classification(cell_type: str):
-    """
-    Train and evaluate one RNN cell type for sentiment classification.
-    Called three times from main() for RNN, LSTM, and GRU.
-    """
     print(f'\n============================================================')
     print(f'  Cell type: {cell_type.upper()}')
     print(f'============================================================')
 
     # ── 1. Load data ──────────────────────────────────────────
     data_root = str(PROJECT_ROOT / 'data' / 'stage_4_data' / 'text_classification')
-    train_loader, test_loader, vocab, label2id = load_classification_data(
+    train_loader, val_loader, test_loader, vocab, label2id = load_classification_data(
         data_root      = data_root,
         max_vocab_size = 20000,
         max_seq_len    = 200,
         batch_size     = 64,
+        val_split      = 0.1,
     )
 
     # ── 2. Build method object ────────────────────────────────
@@ -45,7 +42,7 @@ def run_classification(cell_type: str):
     method_obj.plot_destination_folder_path = str(PROJECT_ROOT / 'result' / 'stage_4_result')
     method_obj.plot_file_name = f'RNN_classification_convergence_{cell_type}.png'
 
-    # Re-initialise the layers now that vocab_size and num_classes are set
+    # Re-init layers with correct vocab_size and num_classes
     method_obj.__init__(
         f'rnn_classification_{cell_type}',
         f'RNN sentiment classification — {cell_type.upper()}'
@@ -56,9 +53,9 @@ def run_classification(cell_type: str):
     method_obj.plot_destination_folder_path = str(PROJECT_ROOT / 'result' / 'stage_4_result')
     method_obj.plot_file_name = f'RNN_classification_convergence_{cell_type}.png'
 
-    # Pass data loaders via the .data dict (same pattern as other stages)
     method_obj.data = {
         'train_loader': train_loader,
+        'val_loader':   val_loader,
         'test_loader':  test_loader,
     }
 
@@ -73,21 +70,18 @@ def run_classification(cell_type: str):
 
     # ── 5. Evaluate ───────────────────────────────────────────
     evaluate_obj = Evaluate_Accuracy('classification metrics', '')
-    evaluate_obj.data = {
-        'true_y': results['true_y'],
-        'pred_y': results['pred_y'],
-    }
+    evaluate_obj.data = {'true_y': results['true_y'], 'pred_y': results['pred_y']}
     metrics = evaluate_obj.evaluate()
 
-    # ── 6. Save results to text file ──────────────────────────
-    result_dir = Path(result_obj.result_destination_folder_path)
+    # ── 6. Save results ───────────────────────────────────────
+    result_dir  = Path(result_obj.result_destination_folder_path)
     result_dir.mkdir(parents=True, exist_ok=True)
     result_path = result_dir / result_obj.result_destination_file_name
 
     with open(result_path, 'w') as f:
-        f.write(f'Cell type : {cell_type.upper()}\n')
-        f.write(f'Epochs    : {method_obj.max_epoch}\n')
-        f.write(f'Vocab size: {len(vocab)}\n\n')
+        f.write(f'Cell type  : {cell_type.upper()}\n')
+        f.write(f'Epochs     : {method_obj.max_epoch}\n')
+        f.write(f'Vocab size : {len(vocab)}\n\n')
         f.write('---- Evaluation Metrics ----\n')
         for name, value in metrics.items():
             f.write(f'{name}: {value:.4f}\n')
@@ -108,12 +102,10 @@ def main():
 
     print('************ Stage 4: RNN Text Classification ************')
 
-    # Run all three cell types — covers parts 4-2, 4-3, and 4-5
     summary = {}
     for cell_type in ['rnn', 'lstm', 'gru']:
         summary[cell_type] = run_classification(cell_type)
 
-    # ── Final comparison table ────────────────────────────────
     print('\n************ Overall Comparison ************')
     print(f'{"Cell":<6}  {"Accuracy":>10}  {"F1 (weighted)":>14}')
     print('-' * 36)
